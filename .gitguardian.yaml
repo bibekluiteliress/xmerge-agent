@@ -1,0 +1,5 @@
+version: 2
+secret:
+  # Vendored Yarn binary: it embeds Yarn's public, search-only Algolia key for `yarn search`.
+  ignored_paths:
+    - .yarn/releases/

@@ -1,0 +1,17 @@
+{
+  "name": "xmerge-studio",
+  "private": true,
+  "packageManager": "yarn@4.10.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "./run.sh",
+    "test": "yarn workspace @xmerge-studio/server test",
+    "typecheck": "yarn workspaces foreach -A run typecheck"
+  }
+}

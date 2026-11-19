@@ -1,0 +1,35 @@
+# Dependencies (Yarn 4, node-modules linker)
+node_modules/
+.yarn/*
+!.yarn/releases/
+
+# Build output
+server/.mastra/
+web/dist/
+*.tsbuildinfo
+
+# Test output and scratch tests
+coverage/
+server/test/tmp_*/
+
+# Python engine
+__pycache__/
+*.py[cod]
+.venv/
+
+# Secrets (.env holds the Bedrock and Artifactory tokens)
+.env
+.env.*
+.npmrc
+
+# Logs
+*.log
+
+# Editors, OS and local agent state
+.vscode/
+.idea/
+.claude/
+.DS_Store
+
+# ggshield
+.cache_ggshield
