@@ -33,3 +33,14 @@ __pycache__/
 
 # ggshield
 .cache_ggshield
+
+# Sample template originals (Word/ODT files carry author metadata); upload samples/*.md instead
+samples/
+
+# Not committed for now: infrastructure scripts, the demo recorder, review docs, tests and the
+# downloaded XWord field list (site data)
+ai/
+infra/
+video/out/
+server/test/
+Xword.json

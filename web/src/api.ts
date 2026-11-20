@@ -14,6 +14,7 @@ export interface Gate {
   problems: string[]
   review: string[]
   notHeld: string[]
+  notAllowed?: string[] // sensitive fields left out; optional so an older server still works
 }
 
 export interface RunResult {
@@ -81,12 +82,15 @@ export function saveFile(b64: string, mimetype: string, filename: string) {
 
 export const checkTemplate = (template: string) => json<Gate>('/studio/check', { template })
 
-/** Generate (no template) or revise (with the current template); calls onEvent for each streamed event. */
-export async function run(request: string, template: string | null, onEvent: (e: RunEvent) => void, signal?: AbortSignal) {
+/**
+ * Generate (no template) or revise (with the current template); calls onEvent for each streamed event.
+ * `history` is the adviser's earlier requests for this report: the model keeps no conversation of its own.
+ */
+export async function run(request: string, template: string | null, history: string[], onEvent: (e: RunEvent) => void, signal?: AbortSignal) {
   const res = await fetch('/studio/run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ request, template }),
+    body: JSON.stringify({ request, template, history }),
     signal,
   })
   if (!res.ok || !res.body) throw new Error(`Server returned ${res.status}`)

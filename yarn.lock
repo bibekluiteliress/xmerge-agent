@@ -1845,12 +1845,21 @@ __metadata:
     "@ai-sdk/amazon-bedrock": "npm:5.0.130"
     "@mastra/core": "npm:1.81.0"
     "@types/node": "npm:26.6.6"
+    aws4fetch: "npm:1.0.20"
     fast-xml-parser: "npm:5.11.2"
     mastra: "npm:1.37.0"
     typescript: "npm:~5.9.0"
     vite: "npm:^7.0.0"
     vitest: "npm:5.0.5"
     zod: "npm:4.6.7"
+  languageName: unknown
+  linkType: soft
+
+"@xmerge-studio/video@workspace:video":
+  version: 0.0.0-use.local
+  resolution: "@xmerge-studio/video@workspace:video"
+  dependencies:
+    playwright-core: "npm:1.58.2"
   languageName: unknown
   linkType: soft
 
@@ -1938,7 +1947,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"aws4fetch@npm:^1.0.20":
+"aws4fetch@npm:1.0.20, aws4fetch@npm:^1.0.20":
   version: 1.0.20
   resolution: "aws4fetch@npm:1.0.20"
   checksum: 10/1329dd5913224c9a4fcb276633a2677baafe8224c3e4b99083309b30af4b114b33a73b6674369419f1978b83e905c4fff61d4af175c24450707c3cf027bb86da
@@ -3987,6 +3996,15 @@ __metadata:
     exsolve: "npm:^1.1.3"
     pathe: "npm:^2.0.3"
   checksum: 10/8c787859bd4496ac7152e73e43e9e5cebb01555be084b7118ba784495f3464fb0f6ac1b632d52a239b3001d74be4664f6bdeb88349a450aef52c7ada5ea8f6f2
+  languageName: node
+  linkType: hard
+
+"playwright-core@npm:1.58.2":
+  version: 1.58.2
+  resolution: "playwright-core@npm:1.58.2"
+  bin:
+    playwright-core: cli.js
+  checksum: 10/8a98fcf122167e8703d525db2252de0e3da4ab9110ab6ea9951247e52d846310eb25ea2c805e1b7ccb54b4010c44e5adc3a76aae6da02f34324ccc3e76683bb1
   languageName: node
   linkType: hard
 

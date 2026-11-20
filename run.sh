@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Start XMerge Studio: engine service (:8766) + Mastra server (:4111) + React app (:5173).
+# Start XMerge Studio: Mastra server (:4111) + React app (:5173). Needs only Node (see .nvmrc).
 #
 #   ./run.sh           # uses .env; installs what is missing
 #   ./run.sh --auth    # run "authenticate --to=$XMS_AUTH_TO" first (fresh Artifactory/AWS tokens)
@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 YARN=(node "$HERE/.yarn/releases/yarn-4.10.3.cjs")
 
-KEYS=" AWS_BEARER_TOKEN_BEDROCK AWS_REGION XMS_MODEL XMS_AUTH_TO ARTIFACTORY_USERNAME ARTIFACTORY_ACCESS_TOKEN ARTIFACTORY_HOSTNAME "
+KEYS=" AWS_BEARER_TOKEN_BEDROCK AWS_REGION XMS_MODEL XMS_AUTH_TO XMS_GUARDRAIL_ID XMS_GUARDRAIL_VERSION XMS_KB_ID ARTIFACTORY_USERNAME ARTIFACTORY_ACCESS_TOKEN ARTIFACTORY_HOSTNAME "
 if [ -f .env ]; then
   case "$(stat -f '%Lp' .env 2>/dev/null || stat -c '%a' .env)" in 600|400) ;; *) echo "Refusing .env: other users can read it. Run: chmod 600 .env" >&2; exit 1 ;; esac
   while IFS= read -r line || [ -n "$line" ]; do
@@ -42,23 +42,20 @@ if [ ! -d node_modules/@mastra/core ] || [ ! -d node_modules/vite ]; then
   "${YARN[@]}" install
 fi
 
-# The engine service (Word files and the Err scan) needs only Python 3 with its standard library.
-PY="$(command -v python3 || true)"
-[ -n "$PY" ] && "$PY" -c 'import sys; sys.exit(sys.version_info < (3, 8))' || { echo "Install Python 3.8 or newer (python3)." >&2; exit 1; }
-[ -f server/data/catalog.json ] || "$PY" -W ignore -I engine/export_catalog.py
+[ -f server/data/catalog.json ] || { echo "server/data/catalog.json is missing; run: python3 -I engine/export_catalog.py" >&2; exit 1; }
 
-# Bedrock: API key only, so drop SigV4 credentials the SDK might pick instead.
+# Bedrock: the model uses the API key when there is one. The knowledge base of sample templates
+# (XMS_KB_ID) does not accept API keys, so it needs the AWS keys `authenticate` exports.
+if [ -n "${XMS_KB_ID:-}" ] && [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then authenticate_now; fi
 if [ -n "${AWS_BEARER_TOKEN_BEDROCK:-}" ]; then
-  unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
+  [ -n "${XMS_KB_ID:-}" ] || unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE
 else
   echo "Note: AWS_BEARER_TOKEN_BEDROCK is not set in .env; Bedrock will use the shell's AWS credentials." >&2
 fi
 export AWS_REGION="${AWS_REGION:-ap-southeast-2}" XMS_MODEL="${XMS_MODEL:-au.anthropic.claude-opus-5-5}"
 
-token() { "$PY" -c 'import secrets; print(secrets.token_urlsafe(24))'; }
-export XMS_TOKEN="$(token)" XMS_ENGINE_TOKEN="$(token)"
-export XMS_ENGINE_PORT="${XMS_ENGINE_PORT:-8766}" XMS_SERVER_PORT="${XMS_SERVER_PORT:-4111}" XMS_WEB_PORT="${XMS_WEB_PORT:-5173}"
-export XMS_ENGINE_URL="http://127.0.0.1:$XMS_ENGINE_PORT"
+export XMS_TOKEN="$(node -e 'console.log(require("crypto").randomBytes(24).toString("base64url"))')"
+export XMS_SERVER_PORT="${XMS_SERVER_PORT:-4111}" XMS_WEB_PORT="${XMS_WEB_PORT:-5173}"
 
 export XMS_ROOT="$HERE"
 # Agents + workflows + /studio API only: a plain build has no Mastra Studio UI (that needs --studio).
@@ -66,7 +63,7 @@ echo "Building the agent server ..."
 (cd server && "${YARN[@]}" mastra build --force >/dev/null) || { echo "mastra build failed; run: cd server && mastra build" >&2; exit 1; }
 
 # A process left over from an earlier run would keep serving old code (and the new one would fail to bind).
-for port in "$XMS_ENGINE_PORT" "$XMS_SERVER_PORT" "$XMS_WEB_PORT"; do
+for port in "$XMS_SERVER_PORT" "$XMS_WEB_PORT"; do
   if pid="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null)" && [ -n "$pid" ]; then
     echo "Port $port is still in use by an earlier run (pid $pid). Stop it with: kill $pid" >&2
     exit 1
@@ -75,7 +72,6 @@ done
 
 PIDS=()
 trap 'kill "${PIDS[@]}" 2>/dev/null' EXIT INT TERM HUP
-"$PY" -W ignore -I engine/engine_service.py & PIDS+=($!)
 (cd server && "${YARN[@]}" mastra start) & PIDS+=($!)
 (cd web && "${YARN[@]}" vite) & PIDS+=($!)
 echo

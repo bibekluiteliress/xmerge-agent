@@ -14,11 +14,16 @@ export interface CatalogSource {
   siteOnly?: number
 }
 
+// The field policy from ai/dev/guardrails.json ("forbidden" and "sensitive_fields_require_approval"). It
+// is the app's own rule set, applied on top of whatever flags the field source (stock, XWord, site) gives.
 interface PolicyRules {
   block_types: string[]
   block_flags: string[]
   review_flags: string[]
   block_names: string[]
+  block_name_prefixes?: string[] // forbidden.field_name_prefixes, e.g. the AML risk fields
+  review_names?: string[] // sensitive_fields_require_approval.field_names: birth details, health
+  review_types?: string[] // forbidden.field_types_caution
 }
 
 interface StockFile {
@@ -63,8 +68,10 @@ export class Catalog {
     const flags = new Set(flagText.split(',').filter(Boolean))
     const r = this.rules
     if (r.block_types.includes(type) || r.block_names.includes(name) || r.block_flags.some((f) => flags.has(f))) return 'block'
+    if (r.block_name_prefixes?.some((p) => name.startsWith(p))) return 'block'
     // sitecustom: a field only this site has, so there are no stock flags to trust.
     if (r.review_flags.some((f) => flags.has(f)) || flags.has('sitecustom')) return 'review'
+    if (r.review_names?.includes(name) || r.review_types?.includes(type)) return 'review'
     return 'ok'
   }
 

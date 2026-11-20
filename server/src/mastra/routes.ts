@@ -2,7 +2,8 @@
 import { registerApiRoute } from '@mastra/core/server'
 import type { Context } from 'hono'
 import { catalog } from '../lib/catalog.js'
-import * as engine from '../lib/engine.js'
+import { buildDocx, errLines } from '../lib/docx.js'
+import { splitPasted } from '../lib/flow.js'
 import { gate } from '../lib/gate.js'
 import { clearFlagCache, setSiteSession, siteSession } from '../lib/siteflags.js'
 import { fromXword, xwordFields } from '../lib/xword.js'
@@ -17,7 +18,7 @@ async function guard(c: Context, next: () => Promise<void>) {
 
 const fail = (c: Context, err: unknown) => {
   const message = err instanceof Error ? err.message : String(err)
-  const expected = err instanceof XplanError || /XWord|JSON|xword-data|engine/.test(message)
+  const expected = err instanceof XplanError || /XWord|JSON|xword-data/.test(message)
   if (!expected) console.error(err)
   return c.json({ error: message }, expected ? 400 : 500)
 }
@@ -52,19 +53,25 @@ function loadFields(fields: unknown[], label: string) {
   return catalog.source
 }
 
-/** Server-sent events: one JSON object per event. */
-function sse(run: (send: (event: unknown) => void) => Promise<void>) {
+/** Server-sent events: one JSON object per event. `onCancel` runs when the browser stops reading (Stop). */
+function sse(run: (send: (event: unknown) => void) => Promise<void>, onCancel?: () => void) {
   const enc = new TextEncoder()
+  let open = true
   const body = new ReadableStream({
     async start(ctrl) {
-      const send = (e: unknown) => ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`))
+      const send = (e: unknown) => open && ctrl.enqueue(enc.encode(`data: ${JSON.stringify(e)}\n\n`))
       try {
         await run(send)
       } catch (err) {
         send({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
       } finally {
-        ctrl.close()
+        if (open) ctrl.close()
+        open = false
       }
+    },
+    cancel() {
+      open = false
+      onCancel?.()
     },
   })
   return new Response(body, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' } })
@@ -157,12 +164,19 @@ export const studioRoutes = [
     method: 'POST',
     middleware: [guard],
     handler: async (c) => {
-      const { request, template } = await c.req.json<{ request: string; template?: string }>()
+      const body = await c.req.json<{ request: string; template?: string; history?: unknown }>()
+      const { request } = body
+      // A new report whose message holds a template (pasted with "fix this") is a revise of that template.
+      const pasted = body.template?.trim() ? null : splitPasted(request ?? '')
+      const template = pasted?.template ?? body.template
+      const instruction = pasted?.instruction ?? request
+      // Earlier requests of the current report only; "New report" in the app sends none.
+      const history = Array.isArray(body.history) ? body.history.filter((h): h is string => typeof h === 'string') : []
       const mastra = c.get('mastra')
       const wf = template?.trim() ? mastra.getWorkflow('reviseWorkflow') : mastra.getWorkflow('reportWorkflow')
-      const inputData = template?.trim() ? { template, instruction: request } : { request }
+      const inputData = template?.trim() ? { template, instruction, history } : { request, history }
+      const run = await wf.createRun()
       return sse(async (send) => {
-        const run = await wf.createRun()
         const stream = run.stream({ inputData: inputData as never })
         for await (const chunk of stream.fullStream as AsyncIterable<{ type: string; payload?: Record<string, unknown> }>) {
           const p = chunk.payload ?? {}
@@ -173,7 +187,7 @@ export const studioRoutes = [
         const result = await stream.result
         if (result.status === 'success') send({ kind: 'result', ...(result.result as object) })
         else send({ kind: 'error', message: result.status === 'failed' ? (result.error?.message ?? 'The workflow failed.') : `The workflow ended: ${result.status}` })
-      })
+      }, () => void run.cancel().catch(() => {})) // Stop in the app: no more model calls for this run
     },
   }),
 
@@ -219,8 +233,8 @@ export const studioRoutes = [
         const checked = await gate(body.template ?? '')
         if (!checked.check.ok) throw new XplanError('Fix the blocking problems before running the template in XPLAN.')
         const client = await clientName(siteUrl, xplanid, id)
-        const merged = await runAdhoc(siteUrl, xplanid, await engine.docx(body.template), id, format)
-        const scan = await engine.scan(merged, format)
+        const merged = await runAdhoc(siteUrl, xplanid, buildDocx(body.template), id, format)
+        const scan = errLines(merged, format)
         const isPdf = merged.subarray(0, 4).toString('latin1') === '%PDF'
         const base = (body.name ?? 'xmerge-report').replace(/[^\w.-]+/g, '-').slice(0, 50) || 'xmerge-report'
         console.info(`xplan run: ${host(siteUrl)} client ${id}, ${merged.length} bytes, ${scan.errors.length} Err line(s)`)
@@ -247,7 +261,7 @@ export const studioRoutes = [
         const { template, format, name } = await c.req.json<{ template: string; format: 'txt' | 'docx'; name?: string }>()
         const base = (name ?? 'xmerge-template').replace(/[^\w.-]+/g, '-').slice(0, 60) || 'xmerge-template'
         if (format === 'docx') {
-          return new Response(new Uint8Array(await engine.docx(template)), {
+          return new Response(new Uint8Array(buildDocx(template)), {
             headers: {
               'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
               'Content-Disposition': `attachment; filename="${base}.docx"`,

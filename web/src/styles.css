@@ -152,3 +152,15 @@ button { font: inherit; }
 .btn.wide { width: 100%; padding: 9px 12px; margin-top: 6px; }
 .user { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .user .btn.small { margin-top: 0; }
+
+/* Document versions and cards (like an artifact: each change is a version you can go back to) */
+.doc-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.versions { display: inline-flex; align-items: center; gap: 2px; font-weight: 400; font-size: 13px; color: var(--muted); }
+.versions .btn.small { margin-top: 0; padding: 1px 7px; }
+.edited { font-weight: 400; font-size: 12px; color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 0 8px; }
+.doc-card { display: grid; gap: 2px; text-align: left; margin: 8px 0; padding: 10px 14px; width: min(360px, 100%); border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.doc-card:hover:not(:disabled) { border-color: var(--accent); }
+.doc-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.doc-card-title { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-card-sub { font-size: 12.5px; color: var(--muted); }
+.show-doc { position: fixed; right: 18px; bottom: 90px; }

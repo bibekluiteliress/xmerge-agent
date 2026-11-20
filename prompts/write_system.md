@@ -22,6 +22,9 @@ How to translate the design:
 - Your notes are for the adviser: about the report, never about how it was made.
 - If no field in the sheet fits a data point, write the literal text [not held in XPLAN: description] in its
   place and list it in your notes. Do not invent a field.
+- If the sheet marks the field for a data point NOT ALLOWED (a sensitive field such as a TFN), XPLAN does
+  hold it but templates may never show it: write the literal text [not allowed: description] in its place
+  and say so in your notes. Never call a not-allowed field "not held", and never show part of it.
 
 Answer with at most five short bullet notes for the adviser (fields needing approval, data points not held,
 anything you had to interpret), then the complete template in one fenced block that starts with ```xmerge

@@ -121,9 +121,15 @@ export interface UfieldDef {
   flag?: unknown[]
 }
 
-/** GET ufield/{group}: the site's field definitions with flags. Hidden fields are left out by XPLAN. */
-export const ufieldGroup = (siteUrl: string, xplanid: string, group: string) =>
-  get<UfieldDef[]>(siteUrl, xplanid, `ufield/${encodeURIComponent(group)}?include_choices=false`, `the ${group} field flags`, 120_000)
+/**
+ * GET ufield/{group}: the site's field definitions with flags. Without `names` XPLAN lists only the editable
+ * fields (getAllFields), so hidden and searchable-only fields such as preferred_phone are left out; with
+ * `names` it returns exactly those fields, hidden or not (xpt/resourceful/api/ufield.py).
+ */
+export const ufieldGroup = (siteUrl: string, xplanid: string, group: string, names: string[] = []) =>
+  get<UfieldDef[]>(siteUrl, xplanid,
+    `ufield/${encodeURIComponent(group)}?include_choices=false${names.map((n) => `&fields[]=${encodeURIComponent(n)}`).join('')}`,
+    `the ${group} field flags`, 120_000)
 
 export const host = (siteUrl: string) => new URL(base(siteUrl)).host
 

@@ -20,7 +20,8 @@ export const designerAgent = new Agent({
 
 const writerSystem = writerInstructions()
 
-/** Steps 3 and 5: writes, repairs and revises XMerge templates from a design and a field sheet. No tools. */
+/** Steps 3 and 5: writes, repairs and revises XMerge templates from a design and a field sheet. No tools.
+ *  Its system prompt (rules + language reference) carries a Bedrock cache point. */
 export const writerAgent = new Agent({
   id: 'writer',
   name: 'Template writer',

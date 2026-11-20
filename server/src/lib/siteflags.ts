@@ -2,7 +2,9 @@
 // does not depend on the stock catalog for which fields are hidden, secure, encrypted and so on.
 // Fetched lazily, only for the groups a report uses, and cached until the field source changes.
 import { catalog } from './catalog.js'
-import { ufieldGroup } from './xplan.js'
+import { type UfieldDef, ufieldGroup } from './xplan.js'
+
+const NAMED_BATCH = 50 // field names per ufield request, to keep the URL short
 
 // idl/ufield.idl enum FieldFlag, in order, for sites that serialise flags as numbers.
 const FLAG_ORDER = [
@@ -68,26 +70,39 @@ export async function ensureSiteFlags(groups: string[]): Promise<FlagResult[]> {
       continue
     }
     try {
-      const defs = await ufieldGroup(session.siteUrl, session.xplanid, group)
       const flags = new Map<string, string[]>()
       let unknown = 0
-      for (const d of defs) {
-        if (!d.name) continue
-        const names = (Array.isArray(d.flag) ? d.flag : []).map(flagName)
-        unknown += names.filter((n) => n === null).length
-        flags.set(d.name, names.filter((n): n is string => n !== null))
+      const read = (defs: UfieldDef[]) => {
+        for (const d of defs) {
+          if (!d.name) continue
+          const names = (Array.isArray(d.flag) ? d.flag : []).map(flagName)
+          unknown += names.filter((n) => n === null).length
+          flags.set(d.name, names.filter((n): n is string => n !== null))
+        }
+      }
+      read(await ufieldGroup(session.siteUrl, session.xplanid, group))
+      // The listing has only editable fields, but XWord also has searchable-only and hidden ones: ask for
+      // those by name to get their real flags, rather than guessing that every one of them is hidden.
+      const missing = Object.keys(fields).filter((name) => !flags.has(name))
+      let lookupFailed = ''
+      for (let i = 0; i < missing.length && !lookupFailed; i += NAMED_BATCH) {
+        try {
+          read(await ufieldGroup(session.siteUrl, session.xplanid, group, missing.slice(i, i + NAMED_BATCH)))
+        } catch (err) {
+          lookupFailed = (err as Error).message
+        }
       }
       let hidden = 0
       for (const [name, def] of Object.entries(fields)) {
         const site = flags.get(name)
-        // The group listing leaves out hidden fields, so a field XWord has but ufield lacks is treated as hidden.
         if (site) def[2] = site.join(',')
         else {
-          def[2] = 'hidden'
+          def[2] = 'hidden' // the site did not describe it (or the lookup failed): the safe side is "approve first"
           hidden++
         }
       }
       if (unknown) console.warn(`ufield/${group}: ${unknown} flag value(s) in an unrecognised format were ignored`)
+      if (lookupFailed) console.warn(`ufield/${group}: looking up ${missing.length} unlisted field(s) by name failed (${lookupFailed}); they are treated as hidden`)
       done.set(group, 'site')
       out.push({ group, status: 'site', updated: Object.keys(fields).length - hidden, hidden })
     } catch (err) {

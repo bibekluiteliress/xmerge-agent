@@ -12,5 +12,7 @@ export const mastra = new Mastra({
     apiRoutes: studioRoutes,
     // Mastra cuts requests off at 3 minutes by default; a site's XWord list can take longer (xplan.ts allows 30).
     timeout: 35 * 60_000,
+    // A big site's downloaded XWord file is larger than Mastra's 4.5 MB default request body.
+    bodySizeLimit: 64 * 1024 * 1024,
   },
 })
